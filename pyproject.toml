@@ -1,0 +1,10 @@
+[project]
+name = "esp32-learning"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "esptool>=5.2.0",
+    "mpremote>=1.28.0",
+]
