@@ -10,3 +10,6 @@ wheels/
 .venv
 bin/
 
+# WiFi credentials
+src/wifi.config
+

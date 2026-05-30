@@ -14,8 +14,19 @@ OLED_HEIGHT = 64
 OLED_OFFSET_X = 28
 OLED_OFFSET_Y = 24
 
-WIFI_SSID = ""
-WIFI_PASSWORD = ""
+def load_wifi_config(path="wifi.config"):
+    config = {}
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if "=" in line:
+                key, _, value = line.partition("=")
+                config[key.strip()] = value.strip().strip('"')
+    return config
+
+_wifi = load_wifi_config()
+WIFI_SSID = _wifi["WIFI_SSID"]
+WIFI_PASSWORD = _wifi["WIFI_PASSWORD"]
 
 LED_PIN = machine.Pin(8, machine.Pin.OUT)
 AHT20_ADDR = 0x38
