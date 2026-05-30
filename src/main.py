@@ -14,8 +14,11 @@ OLED_HEIGHT = 64
 OLED_OFFSET_X = 28
 OLED_OFFSET_Y = 24
 
-# Flash LED
+WIFI_SSID = ""
+WIFI_PASSWORD = ""
+
 LED_PIN = machine.Pin(8, machine.Pin.OUT)
+AHT20_ADDR = 0x38
 
 def _x(x):
     return x + OLED_OFFSET_X
@@ -69,43 +72,98 @@ def get_private_ip():
     ip = sta_if.ifconfig()[0]
     return ip
 
-flash_led(LED_PIN, reps=3, period=0.5)
-
-WIFI_SSID = ""
-WIFI_PASSWORD = ""
-
-connect_to_wifi(
-    ssid=WIFI_SSID,
-    password=WIFI_PASSWORD
-)
-
-public_ip_address = get_public_ip()
-private_ip_address = get_private_ip()
-
-# Draw on the screen
-i2c = machine.SoftI2C(scl=machine.Pin(6), sda=machine.Pin(5))
-oled = ssd1306.SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, i2c)
-
-while True:
-    oled.fill(0)
-    oled.text("Hello,", _x(0), _y(0))
-    oled.text("World!", _x(0), _y(10))
-    oled.show()
-    time.sleep(1)
-
-    oled.fill(0)
-    oled.text("Public", _x(0), _y(0))
-    oled.text("IPv4", _x(0), _y(10))
-    oled.text(".".join(public_ip_address.split(".")[:2]), _x(0), _y(20))
-    oled.text(".".join(public_ip_address.split(".")[2:]), _x(0), _y(30))
-    oled.show()
-    time.sleep(4)
+def draw_lines(lines=None, i2c=None, oled=None):
     
-    oled.fill(0)
-    oled.text("Private", _x(0), _y(0))
-    oled.text("IPv4", _x(0), _y(10))
-    oled.text(".".join(private_ip_address.split(".")[:2]), _x(0), _y(20))
-    oled.text(".".join(private_ip_address.split(".")[2:]), _x(0), _y(30))
-    oled.show()
-    time.sleep(4)
+    if i2c is None:
+        i2c = machine.SoftI2C(
+            scl=machine.Pin(6),
+            sda=machine.Pin(5)
+        )
 
+    if oled is None:
+        oled = ssd1306.SSD1306_I2C(OLED_WIDTH, OLED_HEIGHT, i2c)
+
+    oled.fill(0)
+    y = 0
+    for line in lines:
+        oled.text(line, _x(0), _y(y))     
+        y += 10
+    oled.show()
+
+
+def aht20_init(i2c):
+    time.sleep_ms(40)
+    i2c.writeto(AHT20_ADDR, b"\xBE\x08\x00")
+    time.sleep_ms(10)
+
+def aht20_read(i2c):
+    i2c.writeto(AHT20_ADDR, b"\xAC\x33\x00")
+    time.sleep_ms(80)
+
+    data = i2c.readfrom(AHT20_ADDR, 6)
+
+    raw_humidity = (data[1] << 12) | (data[2] << 4) | (data[3] >> 4)
+    raw_temperature = ((data[3] & 0x0F) << 16) | (data[4] << 8) | data[5]
+
+    humidity = raw_humidity * 100 / 1048576
+    temperature = raw_temperature * 200 / 1048576 - 50
+
+    return temperature, humidity
+
+
+def show_ip():
+    while True:
+        draw_lines([
+            "Public",
+            "IPv4",
+             ".".join(public_ip_address.split(".")[:2]),
+             ".".join(public_ip_address.split(".")[2:]),
+        ])
+        sleep(3)        
+        draw_lines([
+            "Private",
+            "IPv4",
+            ".".join(private_ip_address.split(".")[:2]),
+            ".".join(private_ip_address.split(".")[2:]),
+        ])
+        sleep(3)
+
+def main():
+
+    # connect_to_wifi(ssid=WIFI_SSID, password=WIFI_PASSWORD)
+    # public_ip_address = get_public_ip()
+    # private_ip_address = get_private_ip()
+
+    i2c = machine.SoftI2C(
+        scl=machine.Pin(6), # Serial Clock
+        sda=machine.Pin(5), # Serial Data
+        freq=100000,
+    )
+
+    print([hex(addr) for addr in i2c.scan()])
+    aht20_init(i2c)
+    
+    while True:
+        temperature, humidity = aht20_read(i2c)
+        draw_lines(
+            lines=[
+                f"T {temperature:0.1f} C",
+                f"H {humidity:0.1f} %"
+            ],
+            i2c=i2c,
+        )
+        print("Temperature: {:.1f} C".format(temperature))
+        print("Humidity: {:.1f} %".format(humidity))
+        time.sleep(2)
+        #print("Deep sleeping in 3")
+        #draw_lines(["3"])
+        #time.sleep(1)
+        #draw_lines(["2"])
+        #time.sleep(1)
+        #draw_lines(["1"])
+        #time.sleep(1)
+        #draw_lines(["       ", "       ", "       ", "       "])
+        #machine.deepsleep(5_000)
+        
+
+main()
